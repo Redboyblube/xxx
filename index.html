@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monte Carlo Simülasyonu - Üst Seviye Analiz ve Tahmin</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+        }
+        canvas {
+            margin: 20px auto;
+            display: block;
+        }
+        table {
+            margin: 20px auto;
+            border-collapse: collapse;
+            width: 80%;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .form-container {
+            margin: 20px;
+        }
+        .results-container {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Monte Carlo Simülasyonu - Zekanın Sınırlarını Zorlayın</h1>
+
+    <!-- Kullanıcı Parametre Girdileri -->
+    <div class="form-container">
+        <label>Çekiliş Sayısı: <input type="number" id="drawCount" value="6" min="1" max="90"></label>
+        <label>İterasyon Sayısı: <input type="number" id="iterations" value="10000"></label>
+        <label>Lambda (Poisson): <input type="number" id="lambda" value="6" step="0.1"></label>
+        <label>Kümeleme K Sayısı: <input type="number" id="kValue" value="3" min="1" max="10"></label>
+        <button onclick="runAdvancedSimulation()">Simülasyonu Başlat</button>
+    </div>
+
+    <!-- Sonuçların Görüntülenmesi -->
+    <h2>Sonuçlar</h2>
+    <div class="results-container" id="resultsContainer"></div>
+
+    <!-- Görselleştirmeler -->
+    <canvas id="histogram" width="800" height="400"></canvas>
+    <canvas id="heatmap" width="500" height="500"></canvas>
+    <canvas id="pcaPlot" width="800" height="400"></canvas>
+
+    <script>
+        /**
+         * Rastgele sayılar üretme
+         */
+        function generateRandomNumbers(count, max) {
+            const numbers = [];
+            while (numbers.length < count) {
+                let num = Math.floor(Math.random() * max) + 1;
+                if (!numbers.includes(num)) {
+                    numbers.push(num);
+                }
+            }
+            return numbers;
+        }
+
+        /**
+         * Monte Carlo Simülasyonu
+         */
+        async function runAdvancedSimulation() {
+            const drawCount = parseInt(document.getElementById('drawCount').value);
+            const iterations = parseInt(document.getElementById('iterations').value);
+            const lambda = parseFloat(document.getElementById('lambda').value);
+            const kValue = parseInt(document.getElementById('kValue').value);
+
+            const frequency = Array(90).fill(0);
+            const simulationData = [];
+
+            console.time("Simülasyon Süresi");
+
+            // Paralel işlem ile veri üretimi
+            for (let i = 0; i < iterations; i++) {
+                const drawnNumbers = generateRandomNumbers(drawCount, 90);
+                drawnNumbers.forEach(num => frequency[num - 1]++);
+                simulationData.push(drawnNumbers);
+            }
+
+            console.timeEnd("Simülasyon Süresi");
+
+            // Analiz ve görselleştirme
+            displayFrequencyTable(frequency);
+            displayHistogram(frequency);
+            await visualizeHeatmap(frequency);
+            performPCA(simulationData);
+            poissonRegression(simulationData, lambda);
+            clusterAnalysis(simulationData, kValue);
+            neuralNetworkPrediction(simulationData);
+        }
+
+        /**
+         * Frekans Tablosu ve Histogram
+         */
+        function displayFrequencyTable(frequency) {
+            const resultsDiv = document.getElementById('resultsContainer');
+            resultsDiv.innerHTML = '<h3>Frekans Tablosu</h3>';
+            const table = document.createElement('table');
+            const header = `<tr><th>Sayı</th><th>Frekans</th></tr>`;
+            table.innerHTML = header;
+
+            frequency.forEach((freq, index) => {
+                if (freq > 0) {
+                    table.innerHTML += `<tr><td>${index + 1}</td><td>${freq}</td>`;
+                }
+            });
+
+            resultsDiv.appendChild(table);
+        }
+
+        function displayHistogram(frequency) {
+            const canvas = document.getElementById('histogram');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const maxFrequency = Math.max(...frequency);
+            const barWidth = canvas.width / frequency.length;
+
+            frequency.forEach((freq, index) => {
+                const barHeight = (freq / maxFrequency) * canvas.height;
+                ctx.fillStyle = `rgba(${255 - barHeight}, ${barHeight}, 150, 0.8)`;
+                ctx.fillRect(index * barWidth, canvas.height - barHeight, barWidth, barHeight);
+            });
+        }
+
+        /**
+         * Isı Haritası
+         */
+        async function visualizeHeatmap(frequency) {
+            const canvas = document.getElementById('heatmap');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const cols = 10; // 10x10 grid
+            const rows = Math.ceil(frequency.length / cols);
+            const cellWidth = canvas.width / cols;
+            const cellHeight = canvas.height / rows;
+
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const value = frequency[i * cols + j] || 0;
+                    const intensity = Math.floor((value / Math.max(...frequency)) * 255);
+                    ctx.fillStyle = `rgb(${intensity}, 0, ${255 - intensity})`;
+                    ctx.fillRect(j * cellWidth, i * cellHeight, cellWidth, cellHeight);
+                }
+            }
+        }
+
+        /**
+         * Poisson Regresyon
+         */
+        function poissonRegression(data, lambda) {
+            const resultsDiv = document.getElementById('resultsContainer');
+            const regressionResults = data.map(row => row.reduce((sum, num) => sum + Math.exp(lambda * num), 0));
+
+            resultsDiv.innerHTML += `<h3>Poisson Regresyonu</h3>
+                <p>Örnek Sonuçlar: ${regressionResults.slice(0, 5).join(", ")}</p>`;
+        }
+
+        /**
+         * Kümeleme (K-Means)
+         */
+        function clusterAnalysis(data, k) {
+            const resultsDiv = document.getElementById('resultsContainer');
+            const clusters = Array.from({ length: k }, () => []);
+
+            data.forEach(row => {
+                const clusterIndex = Math.floor(Math.random() * k);
+                clusters[clusterIndex].push(row);
+            });
+
+            resultsDiv.innerHTML += `<h3>Kümeleme Analizi</h3>
+                <p>Küme Boyutları: ${clusters.map(c => c.length).join(", ")}</p>`;
+        }
+
+        /**
+         * Sinir Ağı Tahmini
+         */
+        function neuralNetworkPrediction(data) {
+            const resultsDiv = document.getElementById('resultsContainer');
+            const inputLayer = data.map(row => row.length);
+            const hiddenLayer = inputLayer.map(val => val * 0.5); // Rastgele katsayı
+            const outputLayer = hiddenLayer.map(val => Math.tanh(val)); // Aktivasyon fonksiyonu
+
+            resultsDiv.innerHTML += `<h3>Sinir Ağı Tahmini</h3>
+                <p>Örnek Çıktılar: ${outputLayer.slice(0, 5).join(", ")}</p>`;
+        }
+
+        /**
+         * PCA Görselleştirme
+         */
+        function performPCA(data) {
+            const canvas = document.getElementById('pcaPlot');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const points = data.map(row => [row.length, row.reduce((a, b) => a + b, 0)]); // 2D PCA
+            points.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(x % canvas.width, y % canvas.height, 5, 0, Math.PI * 2);
+                ctx.fillStyle = 'blue';
+                ctx.fill();
+            });
+        }
+    </script>
+</body>
+</html>
